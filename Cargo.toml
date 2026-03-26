@@ -1,0 +1,15 @@
+[package]
+name = "temporal-pattern"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1"
+bytemuck = { version = "1", features = ["derive", "must_cast"] }
+clap = { version = "4", features = ["derive"] }
+crossbeam-channel = "0.5"
+image = "0.25"
+oneshot = { version = "0.2.1", features = ["std"] }
+pollster = "0.3"
+regex = "1.12.3"
+wgpu = "0.20"
