@@ -90,3 +90,7 @@ Note that some metadata from the original video stream might be lost.  Such as:
 
 `ffprobe` can be used to extract it, and additional flags would be needed to
 include it in the final encoding step.
+
+## References
+
+* [WebGPU Spec](https://gpuweb.github.io/gpuweb/)
