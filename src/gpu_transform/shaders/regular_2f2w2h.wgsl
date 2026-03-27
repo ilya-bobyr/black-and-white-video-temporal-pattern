@@ -3,11 +3,11 @@ struct Params {
     height: u32,
     output_pixel_size: u32,
     _luma_upper_bounds_pad: u32,
-    luma_activations: array<array<vec4<u32>, 2>, 4>,
+    luma_activations: array<array<vec4<f32>, 2>, 4>,
 }
 
-@group(0) @binding(0) var input_tex : texture_2d_array<u32>;
-@group(0) @binding(1) var output_tex : texture_storage_2d_array<rgba8uint, write>;
+@group(0) @binding(0) var input_tex : texture_2d_array<f32>;
+@group(0) @binding(1) var output_tex : texture_storage_2d_array<rgba8unorm, write>;
 @group(0) @binding(2) var<uniform> params : Params;
 
 // Each thread owns an cell that is (output_pixel_size * 2) pixels wide and (output_pixel_size * 2)
@@ -24,7 +24,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     let width: u32 = params.width;
     let height: u32 = params.height;
     let output_pixel_size: u32 = params.output_pixel_size;
-    var luma_activations: array<array<vec4<u32>, 2>, 4> = params.luma_activations;
+    var luma_activations: array<array<vec4<f32>, 2>, 4> = params.luma_activations;
 
     let cell_cols = (width + (output_pixel_size - 1u)) / output_pixel_size;
     let cell_rows = (height + (output_pixel_size - 1u)) / output_pixel_size;
@@ -47,10 +47,8 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     // Unless we are at the end of the video (cutting time axis) or at the edge of the frame, we
     // expect `count` to equal `output_pixel_size * 2* output_pixel_size * 2 * 2`, or
     // `output_pixel_size * 8`.
-    var count = 0u;
-    var total_r = 0u;
-    var total_g = 0u;
-    var total_b = 0u;
+    var count = 0f;
+    var color_total = vec3<f32>(0);
 
     // This shader operates on 2 frames at a time.
     for (var frame_i = 0u; frame_i < 2; frame_i++) {
@@ -65,10 +63,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
                 if px < width && py < height {
                     let c = textureLoad(input_tex,
                         vec2<i32>(i32(px), i32(py)), frame_i, 0);
-                    total_r += c.r;
-                    total_g += c.g;
-                    total_b += c.b;
-                    count += 1u;
+
+                    color_total += c.rgb;
+                    count += 1f;
                 }
             }
         }
@@ -77,19 +74,9 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
     /*
      * 3 decimal digits after comma.
      *
-     * Max `total_{r,g,b}` should be `255 * count`.
-     * Max `count` is `output_pixel_size * 8`.
-     * With `output_pixel_size` of 4, maximum `count` is 32.
-     *
-     * (299 + 587 + 114) * (255 * 32) = 1_000 * 8_160 = 8_160_000
-     *
-     * Maximum value for `total_luma` is `8_160_000` which is below u32::MAX.
-     *
-     * Formula is mostly from
-     *
-     * https://stackoverflow.com/questions/596216/formula-to-determine-perceived-brightness-of-rgb-color
+     * Luminosity conversion coefficients are from BT.709.
      */
-    let total_luma = (299 * total_r + 587 * total_g + 114 * total_b);
+    let total_luma = dot(color_total, vec3<f32>(0.2126, 0.7152, 0.0722));
     let avg_luma = total_luma / count;
 
     // Output pixles use `luma_activations` to decide when they need to light up.  But the whole
@@ -110,7 +97,7 @@ fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
                         // `avg_luma` uses 3 digits after comma, while `luma_upper_bound` is just
                         // whole numbers.  So we need to scale here.
                         let luma_activation =
-                            luma_activations[pattern_i][frame_i][dy * 2 + dx] * 1000;
+                            luma_activations[pattern_i][frame_i][dy * 2 + dx];
 
                         let out_color = select(
                             vec4(0u),        // below cutoff -> black

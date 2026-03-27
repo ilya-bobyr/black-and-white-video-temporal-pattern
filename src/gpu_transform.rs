@@ -81,7 +81,7 @@ impl GpuContext {
                     binding: 0,
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::Texture {
-                        sample_type: TextureSampleType::Uint,
+                        sample_type: TextureSampleType::Float { filterable: false },
                         view_dimension: TextureViewDimension::D2Array,
                         multisampled: false,
                     },
@@ -93,7 +93,7 @@ impl GpuContext {
                     visibility: ShaderStages::COMPUTE,
                     ty: BindingType::StorageTexture {
                         access: StorageTextureAccess::WriteOnly,
-                        format: TextureFormat::Rgba8Uint,
+                        format: TextureFormat::Rgba8UnormSrgb,
                         view_dimension: TextureViewDimension::D2Array,
                     },
                     count: None,
@@ -277,7 +277,7 @@ fn prepare_image_processing_ctx(
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8Uint,
+        format: TextureFormat::Rgba8UnormSrgb,
         usage: TextureUsages::TEXTURE_BINDING | TextureUsages::COPY_DST,
         view_formats: &[],
     });
@@ -288,7 +288,7 @@ fn prepare_image_processing_ctx(
         mip_level_count: 1,
         sample_count: 1,
         dimension: TextureDimension::D2,
-        format: TextureFormat::Rgba8Uint,
+        format: TextureFormat::Rgba8UnormSrgb,
         usage: TextureUsages::STORAGE_BINDING | TextureUsages::COPY_SRC,
         view_formats: &[],
     });

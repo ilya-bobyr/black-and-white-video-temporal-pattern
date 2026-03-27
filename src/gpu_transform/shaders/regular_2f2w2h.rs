@@ -24,18 +24,19 @@ pub(crate) struct Params {
     ///
     /// TODO How may patterns do we really need here?
     ///
-    /// WGSL requires array elements to be aligned on 16 bytes.  And there is no `vec16<u8>` and no
-    /// `u8` type in the WGSL.  I can pack 4 luma bounds into a single `u32` - the smallest value
-    /// WGSL supports.  But it probably does not save all that much, as we are looking at
-    /// parameters that are constructed only once.
+    /// `f32` is an overkill for luma activations.  We could have easily used a single byte, by
+    /// writing just the numerator of an `n / 256` fraction.  But WGSL requires array elements to be
+    /// aligned on 16 bytes.  And there is no `vec16<u8>` and no `u8` type in the WGSL.  I can pack
+    /// 4 luma bounds into a single `u32` - the smallest value WGSL supports.  But it probably does
+    /// not save all that much, as we are looking at parameters that are constructed only once.
     ///
-    /// So, for simplicity, `[u32; 4]` carries information for a single frame.
+    /// So, for simplicity, `[f32; 4]` carries information for a single frame.
     /// Pixel coordinates are `y * 2 + x`.
     ///
     /// Next level index is the frame index.  Which we have only two.
     /// Next level is the pattern index - these vary based on the x,y coordinates of the cell, in
     /// order to avoid synchronization of the flickering of the frame as a whole.
-    luma_activations: [[[u32; 4]; 2]; 4],
+    luma_activations: [[[f32; 4]; 2]; 4],
 }
 
 pub(crate) fn create_params_buffer(
@@ -44,60 +45,74 @@ pub(crate) fn create_params_buffer(
     height: u32,
     output_pixel_size: u32,
 ) -> Buffer {
+    const LEVELS_OF_GREY: u8 = 8;
+
+    // A helper to write luma activations with less noise.
+    //
+    // Returns an upper bound that is still considered the specified luma level.
+    const fn on(level: u8) -> f32 {
+        debug_assert!(level < LEVELS_OF_GREY);
+
+        // TODO When https://github.com/rust-lang/rust/issues/143874 is resolved:
+        //
+        //   f32::from(level + 1) / f32::from(LEVELS_OF_GREY)
+        //
+        ((level + 1) as f32) / (LEVELS_OF_GREY as f32)
+    }
+
     // Lists upper bounds for 8 pixels that form a pattern.
-    // The luminosity range of 0..256 is split into 8 regions, 32 units wide each.
     #[rustfmt::skip]
     let luma_activations = [
         /* pattern 0 */
         [
             /* frame 0 */
             [
-                (32 * 0) + 31, (32 * 2) + 31,
-                (32 * 3) + 31, (32 * 1) + 31,
+                on(0), on(2),
+                on(3), on(1),
             ],
             /* frame 1 */
             [
-                (32 * 4) + 31, (32 * 6) + 31,
-                (32 * 7) + 31, (32 * 5) + 31,
+                on(4), on(6),
+                on(7), on(5),
             ],
         ],
         /* pattern 1 */
         [
             /* frame 0 */
             [
-                (32 * 4) + 31, (32 * 6) + 31,
-                (32 * 7) + 31, (32 * 5) + 31,
+                on(4), on(6),
+                on(7), on(5),
             ],
             /* frame 1 */
             [
-                (32 * 0) + 31, (32 * 2) + 31,
-                (32 * 3) + 31, (32 * 1) + 31,
+                on(0), on(2),
+                on(3), on(1),
             ],
         ],
         /* pattern 2 */
         [
             /* frame 0 */
             [
-                (32 * 1) + 31, (32 * 3) + 31,
-                (32 * 2) + 31, (32 * 0) + 31,
+                on(1), on(3),
+                on(2), on(0),
             ],
             /* frame 1 */
             [
-                (32 * 5) + 31, (32 * 7) + 31,
-                (32 * 6) + 31, (32 * 4) + 31,
+                on(5), on(7),
+                on(6), on(4),
             ],
         ],
         /* pattern 3 */
         [
             /* frame 0 */
             [
-                (32 * 5) + 31, (32 * 7) + 31,
-                (32 * 6) + 31, (32 * 4) + 31,
+                on(5), on(7),
+                on(6), on(4),
             ],
             /* frame 1 */
             [
-                (32 * 1) + 31, (32 * 3) + 31,
-                (32 * 2) + 31, (32 * 0) + 31,
+                on(1), on(3),
+                on(2), on(0),
             ],
         ],
     ];
